@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>周计划任务管理器</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+
+  <!-- ========== 导航栏 ========== -->
+  <nav class="navbar">
+    <div class="navbar-brand"><span class="icon">📋</span> 周计划管理器</div>
+    <div class="navbar-week" id="weekInfo">—</div>
+    <div class="navbar-spacer"></div>
+    <div class="sync-badge offline" id="syncBadge" onclick="openSettingsModal()" title="点击查看同步设置">
+      <span class="dot"></span>
+      <span id="syncText">未同步</span>
+    </div>
+    <button class="btn btn-ghost" onclick="openArchiveDrawer()">📦 归档历史</button>
+    <button class="btn btn-ghost" onclick="confirmArchive()">📥 立即归档</button>
+    <button class="btn btn-primary" onclick="openTaskModal()">＋ 新增任务</button>
+  </nav>
+
+  <!-- ========== 主内容 ========== -->
+  <div class="container">
+
+    <!-- 统计卡片 -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--accent-dim)">📋</div>
+        <div class="stat-info"><div class="stat-value" id="statTotal">0</div><div class="stat-label">总任务</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(255,71,87,0.15)">🔴</div>
+        <div class="stat-info"><div class="stat-value" id="statHigh">0</div><div class="stat-label">高优先级</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(0,217,255,0.15)">⚡</div>
+        <div class="stat-info"><div class="stat-value" id="statProgress">0</div><div class="stat-label">进行中</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(46,213,115,0.15)">✅</div>
+        <div class="stat-info"><div class="stat-value" id="statDone">0</div><div class="stat-label">已完成</div></div>
+      </div>
+    </div>
+
+    <!-- 筛选 -->
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">全部</button>
+      <button class="filter-btn" data-filter="未开始">未开始</button>
+      <button class="filter-btn" data-filter="进行中">进行中</button>
+      <button class="filter-btn" data-filter="已完成">已完成</button>
+      <button class="filter-btn" data-filter="已搁置">已搁置</button>
+    </div>
+
+    <!-- 任务表格 -->
+    <div class="task-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>项目名称</th>
+            <th>优先级</th>
+            <th>开始</th>
+            <th>结束</th>
+            <th>负责人</th>
+            <th>状态</th>
+            <th>备注</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="taskBody"></tbody>
+      </table>
+    </div>
+
+    <!-- 每周进程表 -->
+    <div class="gantt-section">
+      <div class="gantt-header">
+        <div class="gantt-title"><span>📊</span> 每周进程表</div>
+        <div class="gantt-legend">
+          <span><i class="lg-dot" style="background:rgba(255,71,87,0.7)"></i>高</span>
+          <span><i class="lg-dot" style="background:rgba(255,165,2,0.7)"></i>中</span>
+          <span><i class="lg-dot" style="background:rgba(46,213,115,0.7)"></i>低</span>
+        </div>
+      </div>
+      <div class="gantt-table-wrap">
+        <table class="gantt-table">
+          <thead id="ganttHead"></thead>
+          <tbody id="ganttBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 底部 -->
+    <div class="footer">
+      <span>🔄 自动归档：每周一 00:00</span>
+      <span id="updateInfo">—</span>
+    </div>
+  </div>
+
+  <!-- ========== 任务编辑弹窗 ========== -->
+  <div class="modal-overlay" id="taskModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="taskModalTitle">新增任务</div>
+        <button class="modal-close" onclick="closeTaskModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>项目名称 *</label>
+          <input type="text" id="fProjectName" placeholder="输入项目名称">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>优先级</label>
+            <select id="fPriority">
+              <option value="高">🔴 高</option>
+              <option value="中" selected>🟡 中</option>
+              <option value="低">🟢 低</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>状态</label>
+            <select id="fStatus">
+              <option value="未开始">未开始</option>
+              <option value="进行中">进行中</option>
+              <option value="已完成">已完成</option>
+              <option value="已搁置">已搁置</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>开始时间</label>
+            <input type="date" id="fStartDate">
+          </div>
+          <div class="form-group">
+            <label>结束时间</label>
+            <input type="date" id="fEndDate">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>项目负责人</label>
+          <input type="text" id="fOwner" placeholder="负责人姓名">
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <textarea id="fRemark" placeholder="补充说明（可选）"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeTaskModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveTask()">保存（Ctrl+Enter）</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 设置 / 云同步弹窗 ========== -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">⚙️ 设置 & 云同步</div>
+        <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+
+        <div class="settings-section">
+          <h3>☁️ 云端同步</h3>
+          <p style="font-size:13px;color:var(--text-dim);margin-bottom:12px">
+            首次使用自动创建云端存储。在其他电脑打开应用后，输入下方同步码即可关联同一份数据。
+          </p>
+          <label style="font-size:13px;color:var(--text-dim);display:block;margin-bottom:6px">当前同步码</label>
+          <div class="sync-id-box">
+            <input type="text" id="syncIdInput" placeholder="未关联" readonly>
+            <button class="btn btn-ghost btn-sm" onclick="copySyncId()">复制</button>
+          </div>
+          <div class="sync-status-text" id="syncStatusText">—</div>
+
+          <label style="font-size:13px;color:var(--text-dim);display:block;margin:16px 0 6px">关联其他设备（输入同步码）</label>
+          <div class="sync-id-box">
+            <input type="text" id="connectSyncId" placeholder="输入同步码">
+            <button class="btn btn-primary btn-sm" onclick="connectCloud()">关联</button>
+          </div>
+          <div class="sync-status-text" id="connectStatusText"></div>
+        </div>
+
+        <div class="settings-section">
+          <h3>💾 数据备份</h3>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-ghost" onclick="exportData()">📥 导出数据</button>
+            <label class="btn btn-ghost" style="cursor:pointer">
+              📤 导入数据
+              <input type="file" accept=".json" style="display:none" onchange="importData(this.files[0])">
+            </label>
+          </div>
+          <p style="font-size:12px;color:var(--text-dim);margin-top:8px">
+            导出会保存所有任务和归档记录为JSON文件，可用于备份或离线迁移。
+          </p>
+        </div>
+
+        <div class="settings-section">
+          <h3>ℹ️ 关于</h3>
+          <p style="font-size:13px;color:var(--text-dim)">
+            周计划任务管理器 · 云端版<br>
+            数据自动同步，每周一 00:00 自动归档并重置计划表。<br>
+            任何电脑打开网址 + 输入同步码 = 看到同一份数据。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 归档历史抽屉 ========== -->
+  <div class="drawer-overlay" id="archiveDrawerOverlay" onclick="closeArchiveDrawer()"></div>
+  <div class="drawer" id="archiveDrawer">
+    <div class="drawer-header">
+      <div class="modal-title">📦 归档历史</div>
+      <button class="modal-close" onclick="closeArchiveDrawer()">&times;</button>
+    </div>
+    <div class="drawer-body" id="archiveList"></div>
+  </div>
+
+  <!-- ========== 归档详情弹窗 ========== -->
+  <div class="modal-overlay" id="archiveDetailModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="archiveDetailTitle">归档详情</div>
+        <button class="modal-close" onclick="closeArchiveDetail()">&times;</button>
+      </div>
+      <div class="modal-body" id="archiveDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeArchiveDetail()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 容器 -->
+  <div id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
